@@ -1289,12 +1289,12 @@ app.delete("/upload/*publicId", verifyToken, async (req, res) => {
 // SERVER INITIALIZATION
 // ==========================================
 
-if (process.env.NODE_ENV !== "production") {
+// if (process.env.NODE_ENV !== "production") {
   app.listen(port, async () => {
     await connectToDB();
     console.log(`Server is running at port:${port}`);
   });
-}
+// }
 
 export default app;
 
