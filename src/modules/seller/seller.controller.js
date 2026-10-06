@@ -3,6 +3,7 @@ import { isValidObjectId } from "../../lib/objectId.js";
 import { sendError } from "../../lib/respond.js";
 import { del } from "../../lib/cache.js";
 import { PRODUCTS_DEFAULT_KEY } from "../../lib/cacheKeys.js";
+import { anchored } from "../../lib/search.js";
 import * as service from "./seller.service.js";
 
 export async function listProducts(req, res) {
@@ -11,7 +12,7 @@ export async function listProducts(req, res) {
     const { skip, limit } = parsePagination(req.query);
 
     const filter = { sellerEmail: req.user.email };
-    if (search) filter.title = { $regex: search, $options: "i" };
+    if (search) filter.title = anchored(search);
     if (category) filter.category = category;
     if (status) filter.status = status;
 
@@ -96,8 +97,8 @@ export async function listOrders(req, res) {
     if (status) filter.orderStatus = status;
     if (search) {
       filter.$or = [
-        { "buyerInfo.name": { $regex: search, $options: "i" } },
-        { "buyerInfo.email": { $regex: search, $options: "i" } },
+        { "buyerInfo.name": anchored(search) },
+        { "buyerInfo.email": anchored(search) },
       ];
     }
 

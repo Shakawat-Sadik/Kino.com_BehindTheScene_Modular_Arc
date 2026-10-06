@@ -3,6 +3,7 @@ import { isValidObjectId } from "../../lib/objectId.js";
 import { sendError } from "../../lib/respond.js";
 import { getOrSet } from "../../lib/cache.js";
 import { PRODUCTS_DEFAULT_KEY } from "../../lib/cacheKeys.js";
+import { anchored } from "../../lib/search.js";
 import { listProducts, getProductById } from "./products.service.js";
 
 const DEFAULT_TTL = 300; // 5 min
@@ -22,7 +23,7 @@ export async function list(req, res) {
     const { page, limit, skip } = parsePagination(req.query);
 
     const filter = {};
-    if (search) filter.title = { $regex: search, $options: "i" };
+    if (search) filter.title = anchored(search);
     if (category) filter.category = category;
     if (status) filter.status = status;
     if (condition) filter.condition = condition;

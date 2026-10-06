@@ -4,6 +4,7 @@ import { sendError } from "../../lib/respond.js";
 import { invalidateAuthUser } from "../../lib/authCache.js";
 import { del } from "../../lib/cache.js";
 import { PRODUCTS_DEFAULT_KEY } from "../../lib/cacheKeys.js";
+import { anchored } from "../../lib/search.js";
 import * as service from "./admin.service.js";
 
 // ── users ──────────────────────────────────────────────────
@@ -15,8 +16,8 @@ export async function listUsers(req, res) {
     const filter = {};
     if (search) {
       filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
+        { name: anchored(search) },
+        { email: anchored(search) },
       ];
     }
     if (role) filter.role = role;
@@ -93,7 +94,7 @@ export async function listProducts(req, res) {
     const { skip, limit } = parsePagination(req.query);
 
     const filter = {};
-    if (search) filter.title = { $regex: search, $options: "i" };
+    if (search) filter.title = anchored(search);
     if (category) filter.category = category;
     if (status) filter.status = status;
 
@@ -162,8 +163,8 @@ export async function listOrders(req, res) {
     if (status) filter.orderStatus = status;
     if (search) {
       filter.$or = [
-        { "buyerInfo.name": { $regex: search, $options: "i" } },
-        { "buyerInfo.email": { $regex: search, $options: "i" } },
+        { "buyerInfo.name": anchored(search) },
+        { "buyerInfo.email": anchored(search) },
       ];
     }
 
@@ -197,9 +198,9 @@ export async function listPayments(req, res) {
     if (status) filter.paymentStatus = status;
     if (search) {
       filter.$or = [
-        { buyerEmail: { $regex: search, $options: "i" } },
-        { sellerEmail: { $regex: search, $options: "i" } },
-        { transactionId: { $regex: search, $options: "i" } },
+        { buyerEmail: anchored(search) },
+        { sellerEmail: anchored(search) },
+        { transactionId: anchored(search) },
       ];
     }
 

@@ -95,8 +95,9 @@ export async function getAnalytics(db) {
   return { monthlyOrders, categoryPerformance, userGrowth, revenueByMonth };
 }
 
+// Unfiltered totals → near-instant estimate instead of an O(n) scan.
 export function countDocs(db, collection) {
-  return db.collection(collection).countDocuments();
+  return db.collection(collection).estimatedDocumentCount();
 }
 
 export async function getTotalRevenue(db) {
@@ -116,9 +117,9 @@ export function getRevenueByMonth(db) {
 
 export async function getAnalyticsSummary(db) {
   const [totalOrders, totalProducts, totalUsers, totalRevenue] = await Promise.all([
-    db.collection("orders").countDocuments(),
-    db.collection("products").countDocuments(),
-    db.collection("user").countDocuments(),
+    db.collection("orders").estimatedDocumentCount(),
+    db.collection("products").estimatedDocumentCount(),
+    db.collection("user").estimatedDocumentCount(),
     getTotalRevenue(db),
   ]);
   return { totalOrders, totalProducts, totalUsers, totalRevenue };
