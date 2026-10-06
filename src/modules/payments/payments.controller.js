@@ -1,6 +1,8 @@
 import { parsePagination } from "../../lib/pagination.js";
 import { isValidObjectId } from "../../lib/objectId.js";
 import { sendError } from "../../lib/respond.js";
+import { del } from "../../lib/cache.js";
+import { PRODUCTS_DEFAULT_KEY } from "../../lib/cacheKeys.js";
 import * as service from "./payments.service.js";
 
 export async function createIntent(req, res) {
@@ -59,6 +61,7 @@ export async function confirm(req, res) {
       transactionId,
       amount,
     });
+    await del(PRODUCTS_DEFAULT_KEY);
 
     res.status(201).json({
       success: true,

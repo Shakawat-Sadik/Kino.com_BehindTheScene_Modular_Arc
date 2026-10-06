@@ -1,6 +1,9 @@
 import { parsePagination } from "../../lib/pagination.js";
 import { isValidObjectId } from "../../lib/objectId.js";
 import { sendError } from "../../lib/respond.js";
+import { invalidateAuthUser } from "../../lib/authCache.js";
+import { del } from "../../lib/cache.js";
+import { PRODUCTS_DEFAULT_KEY } from "../../lib/cacheKeys.js";
 import * as service from "./admin.service.js";
 
 // ── users ──────────────────────────────────────────────────
@@ -39,7 +42,9 @@ export async function updateUserStatus(req, res) {
     if (!status) {
       return res.status(400).json({ success: false, message: "Status is required" });
     }
+    const target = await service.findUserEmailById(req.db, req.params.userId);
     const result = await service.updateUserStatus(req.db, req.params.userId, status);
+    await invalidateAuthUser(target?.email);
     res.status(200).json({ success: true, message: "User status updated", result });
   } catch (e) {
     sendError(res, 500, "Failed to update user status", e);
@@ -58,7 +63,9 @@ export async function updateUser(req, res) {
     if (location !== undefined) update.location = location;
     if (contact !== undefined) update.contact = contact;
 
+    const target = await service.findUserEmailById(req.db, req.params.userId);
     const result = await service.updateUser(req.db, req.params.userId, update);
+    await invalidateAuthUser(target?.email);
     res.status(200).json({ success: true, message: "User updated", result });
   } catch (e) {
     sendError(res, 500, "Failed to update user", e);
@@ -70,7 +77,9 @@ export async function deleteUser(req, res) {
     if (!isValidObjectId(req.params.userId)) {
       return res.status(400).json({ success: false, message: "Invalid user ID" });
     }
+    const target = await service.findUserEmailById(req.db, req.params.userId);
     await service.deleteUser(req.db, req.params.userId);
+    await invalidateAuthUser(target?.email);
     res.status(200).json({ success: true, message: "User deleted", result: null });
   } catch (e) {
     sendError(res, 500, "Failed to delete user", e);
@@ -109,6 +118,7 @@ export async function updateProduct(req, res) {
     if (description !== undefined) update.description = description;
 
     const result = await service.updateProduct(req.db, req.params.productId, update);
+    await del(PRODUCTS_DEFAULT_KEY);
     res.status(200).json({ success: true, message: "Product updated", result });
   } catch (e) {
     sendError(res, 500, "Failed to update product", e);
@@ -122,6 +132,7 @@ export async function updateProductStatus(req, res) {
     }
     const { status } = req.body;
     const result = await service.updateProductStatus(req.db, req.params.productId, status);
+    await del(PRODUCTS_DEFAULT_KEY);
     res.status(200).json({ success: true, message: "Product status updated", result });
   } catch (e) {
     sendError(res, 500, "Failed to update product status", e);
@@ -134,6 +145,7 @@ export async function deleteProduct(req, res) {
       return res.status(400).json({ success: false, message: "Invalid product ID" });
     }
     await service.deleteProduct(req.db, req.params.productId);
+    await del(PRODUCTS_DEFAULT_KEY);
     res.status(200).json({ success: true, message: "Product deleted", result: null });
   } catch (e) {
     sendError(res, 500, "Failed to delete product", e);

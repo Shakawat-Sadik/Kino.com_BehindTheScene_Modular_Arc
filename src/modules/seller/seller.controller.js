@@ -1,6 +1,8 @@
 import { parsePagination } from "../../lib/pagination.js";
 import { isValidObjectId } from "../../lib/objectId.js";
 import { sendError } from "../../lib/respond.js";
+import { del } from "../../lib/cache.js";
+import { PRODUCTS_DEFAULT_KEY } from "../../lib/cacheKeys.js";
 import * as service from "./seller.service.js";
 
 export async function listProducts(req, res) {
@@ -37,6 +39,7 @@ export async function createProduct(req, res) {
       createdAt: new Date(),
     };
     const result = await service.createProduct(req.db, product);
+    await del(PRODUCTS_DEFAULT_KEY);
     res.status(201).json({ success: true, message: "Product created", result });
   } catch (e) {
     sendError(res, 500, "Failed to create product", e);
@@ -61,6 +64,7 @@ export async function updateProduct(req, res) {
     if (result.matchedCount === 0) {
       return res.status(404).json({ success: false, message: "Product not found or not yours" });
     }
+    await del(PRODUCTS_DEFAULT_KEY);
     res.status(200).json({ success: true, message: "Product updated", result });
   } catch (e) {
     sendError(res, 500, "Failed to update product", e);
@@ -76,6 +80,7 @@ export async function deleteProduct(req, res) {
     if (result.deletedCount === 0) {
       return res.status(404).json({ success: false, message: "Product not found or not yours" });
     }
+    await del(PRODUCTS_DEFAULT_KEY);
     res.status(200).json({ success: true, message: "Product deleted", result: null });
   } catch (e) {
     sendError(res, 500, "Failed to delete product", e);

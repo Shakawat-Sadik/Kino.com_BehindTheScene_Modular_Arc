@@ -1,17 +1,17 @@
 import { sendError } from "../lib/respond.js";
+import { getAuthUser } from "../lib/authCache.js";
 
 /**
- * Role guards. Look up the user by req.user.email and attach req.dbUser.
- *
- * NOTE: still a direct Mongo lookup per request — Phase 3.5/4.4 swaps this for a
- * shared Redis auth-role cache (user:auth:${email}) with explicit invalidation.
+ * Role guards. Resolve the user by req.user.email (Redis auth-role cache, falling
+ * back to Mongo) and attach req.dbUser. Role/status mutations invalidate the
+ * cache (see lib/authCache.invalidateAuthUser) so changes propagate instantly.
  */
 const makeGuard = (allowedRoles, forbiddenMessage) => async (req, res, next) => {
   try {
     if (!req.user?.email) {
       return res.status(401).json({ success: false, message: "Not authenticated" });
     }
-    const user = await req.db.collection("user").findOne({ email: req.user.email });
+    const user = await getAuthUser(req.db, req.user.email);
     if (!user || !allowedRoles.includes(user.role?.toLowerCase())) {
       return res.status(403).json({ success: false, message: forbiddenMessage });
     }

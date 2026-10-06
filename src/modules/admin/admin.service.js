@@ -10,6 +10,10 @@ export async function listUsers(db, { filter, sortObj, skip, limit }) {
   return { result, total };
 }
 
+export function findUserEmailById(db, userId) {
+  return db.collection("user").findOne({ _id: new ObjectId(userId) }, { projection: { email: 1 } });
+}
+
 export function updateUserStatus(db, userId, status) {
   return db.collection("user").updateOne({ _id: new ObjectId(userId) }, { $set: { status } });
 }

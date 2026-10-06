@@ -1,4 +1,5 @@
 import { sendError } from "../../lib/respond.js";
+import { invalidateAuthUser } from "../../lib/authCache.js";
 import { getProfile, updateProfile } from "./profile.service.js";
 
 export async function get(req, res) {
@@ -25,6 +26,7 @@ export async function update(req, res) {
     if (role !== undefined && ["buyer", "seller"].includes(role)) updateDoc.role = role;
 
     const result = await updateProfile(req.db, req.user.email, updateDoc);
+    await invalidateAuthUser(req.user.email);
     res.status(200).json({ success: true, message: "Profile updated", result });
   } catch (e) {
     sendError(res, 500, "Failed to update profile", e);

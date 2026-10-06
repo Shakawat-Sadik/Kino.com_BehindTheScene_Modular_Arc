@@ -1,7 +1,20 @@
 import { parsePagination } from "../../lib/pagination.js";
 import { isValidObjectId } from "../../lib/objectId.js";
 import { sendError } from "../../lib/respond.js";
+import { getOrSet } from "../../lib/cache.js";
+import { PRODUCTS_DEFAULT_KEY } from "../../lib/cacheKeys.js";
 import { listProducts, getProductById } from "./products.service.js";
+
+const DEFAULT_TTL = 300; // 5 min
+
+// The unfiltered first page — the hot path. Cached + invalidated on any product mutation.
+function isDefaultQuery(q) {
+  return (
+    !q.search && !q.category && !q.status && !q.condition && !q.sort && !q.order &&
+    (q.page === undefined || q.page === "1") &&
+    (q.limit === undefined || q.limit === "10")
+  );
+}
 
 export async function list(req, res) {
   try {
@@ -21,7 +34,10 @@ export async function list(req, res) {
       if (sort === "dateUploaded") sortObj.dateUploaded = direction;
     }
 
-    const { result, total } = await listProducts(req.db, { filter, sortObj, skip, limit });
+    const fetch = () => listProducts(req.db, { filter, sortObj, skip, limit });
+    const { result, total } = isDefaultQuery(req.query)
+      ? await getOrSet(PRODUCTS_DEFAULT_KEY, DEFAULT_TTL, fetch)
+      : await fetch();
 
     res.status(200).json({
       success: true,
