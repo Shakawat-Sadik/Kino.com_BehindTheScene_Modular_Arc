@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: kino-server
+    env: node
+    plan: free
+    buildCommand: pnpm install
+    preDeployCommand: node scripts/create-indexes.js
+    startCommand: pnpm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Secrets — set in the Render dashboard, not synced from this file.
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: CLIENT_URL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+    # Render injects PORT automatically; the app binds 0.0.0.0:$PORT.
