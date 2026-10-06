@@ -4,7 +4,9 @@ Backend for the Kino.com marketplace. Express 5 (ESM) + MongoDB (native driver) 
 
 > **This is the Render base of operations.** It was forked (all files except `.git`) from the original Vercel serverless backend, which stays intact as a fallback. This copy is deployed on **Render** as a **long-lived Node web service** and integrates **Upstash Redis** as a shared store for the auth-role cache, rate limiting, and hot-query caching. Because the runtime model is now a persistent process (not ephemeral serverless functions), several serverless-era caveats from the old doc are **relaxed or removed** — they are called out explicitly below.
 
-Today the entire app lives in a single `index.js` (~1300 lines). This document records the known **performance issues** and defines the **migration to a modular architecture** that fixes them. Follow the phases in order — each phase is independently shippable and leaves the app working.
+This document records the known **performance issues** and defines the **migration to a modular architecture** that fixes them. Follow the phases in order — each phase is independently shippable and leaves the app working.
+
+> **Current state (migration complete).** The app is now the modular `src/` architecture described below — `index.js` is a thin entry point and all routes live in `src/modules/*`. See **`README.md`** for the module map, runtime topology, and commands. Phases 0–6 are done; the only intentionally deferred item is **upload streaming (Phase 4.5)**. Modules are organised by **route prefix** (`admin`/`seller`/`buyer`) rather than the `users`/`orders` split sketched below, since guards are prefix-scoped (each prefixed router self-applies `verifyToken` + its role guard).
 
 ---
 
@@ -189,12 +191,12 @@ Introduced by the Render + Upstash base. Do this once modules exist so services 
 
 ### Phase 4 — Query performance fixes (now that modules exist)
 **Category: performance — query optimisation**
-4.1 **Regex search (#2) — PRODUCT decision, NOT YET DECIDED.** All real fixes *change search behaviour*, so this stays open pending product sign-off. Options and trade-offs:
+4.1 **Regex search (#2) — DECIDED: prefix-anchored `^term`.** Implemented in `lib/search.js` (`anchored()`), applied across products/users/orders/payments search, with regex-metachar escaping. **Intentional behaviour change:** matching is anchored to the start of the field — searching "phone" no longer matches "iPhone" (but "iPh" does). Options that were considered:
 - **Prefix-anchored** `^term` (index-usable): fastest, but stops matching substrings in the middle of a field (searching "phone" no longer finds "iPhone").
 - **Text index + `$text`**: matches whole/stemmed words only, no partial-substring match; MongoDB allows **only one text index per collection**.
 - **Atlas Search**: the only option that preserves current substring behaviour *and* performance, but requires the external Atlas Search service.
 - A Redis cache in front of `/products` (Phase 3.5.3) mitigates repeat identical searches but does **not** fix the underlying scan for varied terms / cache misses.
-**Decision pending.** Whichever is chosen, apply consistently across `products`, `users`, `orders`, `payments` services, add the matching index to the Phase 1 script, and document the chosen semantics here (this intentionally breaks "no behaviour change").
+**Decided & implemented:** prefix-anchored `^term`. Anchored regex is index-usable only when the searched field is the leading key of an index, so the Phase 1 script gained `products.{title}`, `user.{name}`, `orders.{"buyerInfo.name"}` (email/`buyerEmail`/`sellerEmail`/`transactionId` were already leading keys of existing indexes). Semantics documented in `README.md`.
 4.2 **Unfiltered counts (#3):** swap `countDocuments()` → `estimatedDocumentCount()` in `/stats` and all `/admin/stats/*` (on the uncached path). Keep `countDocuments(filter)` only where a filter is present.
 4.3 **`/sellers/top` (#4):** primary mitigation is the Redis cache (Phase 3.5.3). For the cache-miss path, maintain a denormalised `productCount` on seller docs (increment on product create/delete), or `$limit` as early as possible in the pipeline.
 4.4 **Guard lookups (#1a) — now resolved via shared Redis cache.** With the `user.email` index in place the lookup is already cheap; the Upstash Redis cache makes it near-free **and safe on this base**:

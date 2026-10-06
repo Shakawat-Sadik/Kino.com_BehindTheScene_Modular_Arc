@@ -26,17 +26,23 @@ export const indexDefinitions = [
   // ── user ────────────────────────────────────────────────
   { collection: "user", keys: { email: 1 }, options: { unique: true, name: "uniq_email" }, dedupeOn: ["email"] },
   { collection: "user", keys: { role: 1 }, options: { name: "role" } },
+  // Supports prefix-anchored name search (admin users). email search uses uniq_email.
+  { collection: "user", keys: { name: 1 }, options: { name: "name" } },
 
   // ── products (ESR compounds) ────────────────────────────
   { collection: "products", keys: { status: 1, category: 1, dateUploaded: -1 }, options: { name: "status_category_date" } },
   { collection: "products", keys: { sellerEmail: 1, _id: -1 }, options: { name: "sellerEmail_id" } },
   { collection: "products", keys: { soldCount: -1 }, options: { name: "soldCount" } },
+  // Supports prefix-anchored public /products title search (Phase 4.1).
+  { collection: "products", keys: { title: 1 }, options: { name: "title" } },
 
   // ── orders ──────────────────────────────────────────────
   { collection: "orders", keys: { "buyerInfo.email": 1, _id: -1 }, options: { name: "buyerEmail_id" } },
   { collection: "orders", keys: { sellerEmail: 1, _id: -1 }, options: { name: "sellerEmail_id" } },
   { collection: "orders", keys: { orderStatus: 1 }, options: { name: "orderStatus" } },
   { collection: "orders", keys: { createdAt: 1 }, options: { name: "createdAt" } },
+  // Supports prefix-anchored buyer-name search (admin/seller orders). buyerInfo.email uses buyerEmail_id.
+  { collection: "orders", keys: { "buyerInfo.name": 1 }, options: { name: "buyerName" } },
 
   // ── payments ────────────────────────────────────────────
   { collection: "payments", keys: { transactionId: 1 }, options: { unique: true, name: "uniq_transactionId" }, dedupeOn: ["transactionId"] },
