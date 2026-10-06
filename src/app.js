@@ -31,7 +31,9 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json());
+// Cap JSON bodies to prevent memory-exhaustion DoS. /upload reads a raw stream
+// (not JSON) and enforces its own byte cap in the uploads controller.
+app.use(express.json({ limit: "1mb" }));
 
 // Health check mounts before attachDb so it can report mongo:down itself
 // instead of being short-circuited by attachDb's 503.

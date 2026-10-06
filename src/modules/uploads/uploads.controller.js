@@ -2,6 +2,8 @@ import crypto from "crypto";
 import { sendError } from "../../lib/respond.js";
 import * as service from "./uploads.service.js";
 
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB
+
 export async function upload(req, res) {
   try {
     const mimeType = req.headers["content-type"] || "image/jpeg";
@@ -9,7 +11,15 @@ export async function upload(req, res) {
     const fileName = req.headers["x-upload-filename"] || "upload";
 
     const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
+    let received = 0;
+    for await (const chunk of req) {
+      received += chunk.length;
+      if (received > MAX_UPLOAD_BYTES) {
+        req.destroy();
+        return res.status(413).json({ success: false, message: "File too large (max 10MB)" });
+      }
+      chunks.push(chunk);
+    }
     const buffer = Buffer.concat(chunks);
 
     if (!buffer.length) {
