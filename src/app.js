@@ -11,7 +11,17 @@ import { notFound } from "./middleware/notFound.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
 import healthRouter from "./modules/health/health.routes.js";
-import legacyRouter from "./legacy.routes.js";
+import productsRouter from "./modules/products/products.routes.js";
+import reviewsRouter from "./modules/reviews/reviews.routes.js";
+import sellersRouter from "./modules/sellers/sellers.routes.js";
+import statsRouter from "./modules/stats/stats.routes.js";
+import wishlistRouter from "./modules/wishlist/wishlist.routes.js";
+import profileRouter from "./modules/profile/profile.routes.js";
+import adminRouter from "./modules/admin/admin.routes.js";
+import sellerRouter from "./modules/seller/seller.routes.js";
+import buyerRouter from "./modules/buyer/buyer.routes.js";
+import paymentsRouter from "./modules/payments/payments.routes.js";
+import uploadsRouter from "./modules/uploads/uploads.routes.js";
 
 const app = express();
 
@@ -29,8 +39,27 @@ app.use(healthRouter);
 
 app.use(attachDb);
 
-// Everything not yet migrated to a module. Shrinks to nothing across Phase 3.
-app.use(legacyRouter);
+// Liveness ping (kept after attachDb to preserve original behaviour).
+app.get("/", (req, res) => {
+  res.json({ message: "Kino.com server has started" });
+});
+
+// Public
+app.use(productsRouter);
+app.use(reviewsRouter);
+app.use(sellersRouter);
+app.use(statsRouter);
+
+// Authenticated (per-route guards)
+app.use(wishlistRouter);
+app.use(profileRouter);
+app.use(paymentsRouter);
+app.use(uploadsRouter);
+
+// Role-prefixed (routers self-apply verifyToken + role guard)
+app.use(adminRouter);
+app.use(sellerRouter);
+app.use(buyerRouter);
 
 app.use(notFound);
 app.use(errorHandler);
