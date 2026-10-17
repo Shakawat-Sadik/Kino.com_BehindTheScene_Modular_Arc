@@ -21,5 +21,11 @@ redis.on("reconnecting", () => {
   console.warn("[redis] reconnecting…");
 });
 
-export const connectRedis = () => redis.connect();
+export const connectRedis = async () => {
+  if (redis.status === "wait") {
+    await redis.connect();
+  }
+  // 'wait' is the default status when lazyConnect is true.
+  // This prevents calling .connect() if it's already 'connecting', 'ready', or 'reconnecting'.
+};
 export const closeRedis = () => redis.quit();
