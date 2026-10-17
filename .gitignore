@@ -5,3 +5,5 @@ front-action.js
 .vercel
 Error message.md
 scripts/.smoke/
+.errors
+.claude
