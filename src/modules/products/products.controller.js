@@ -32,7 +32,7 @@ export async function list(req, res) {
     if (sort) {
       const direction = order === "desc" ? -1 : 1;
       if (sort === "price") sortObj.price = direction;
-      if (sort === "dateUploaded") sortObj.dateUploaded = direction;
+      if (sort === "createdAt") sortObj.createdAt = direction;
     }
 
     const fetch = () => listProducts(req.db, { filter, sortObj, skip, limit });

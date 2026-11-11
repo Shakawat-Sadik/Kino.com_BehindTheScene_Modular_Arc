@@ -4,6 +4,7 @@ import { sendError } from "../../lib/respond.js";
 import { del } from "../../lib/cache.js";
 import { PRODUCTS_DEFAULT_KEY } from "../../lib/cacheKeys.js";
 import { anchored } from "../../lib/search.js";
+import { formatSellerLocation } from "../../lib/sellerSnapshot.js";
 import * as service from "./seller.service.js";
 
 export async function listProducts(req, res) {
@@ -25,19 +26,46 @@ export async function listProducts(req, res) {
 
 export async function createProduct(req, res) {
   try {
-    const { title, category, condition, price, description, images, location } = req.body;
+    const {
+      title, category, condition, price, description, images,
+      quantity, location2, mobile2,
+    } = req.body;
+
+    // location1 + mobile1 come from the seller's user record; the form only
+    // supplies the optional per-listing overrides (location2, mobile2).
+    const location1 = formatSellerLocation(req.dbUser?.location);
+
+    const contact = {
+      mobile1: req.dbUser?.contact ? String(req.dbUser.contact) : "",
+    };
+    if (mobile2) contact.mobile2 = String(mobile2);
+
+    const now = new Date();
     const product = {
-      title, category, condition, price: Number(price), description, images, location,
+      title,
+      category,
+      condition,
+      price: Number(price),
+      quantity: Number(quantity) || 1,
+      location1,
+      ...(location2 ? { location2: String(location2) } : {}),
+      images,
+      description,
+      // sellerEmail/sellerName are retained as the ownership key used across
+      // seller queries, orders, and payments — not part of the public shape.
       sellerEmail: req.user.email,
       sellerName: req.dbUser?.name || "",
       sellerInfo: {
-        email: req.user.email,
-        name: req.dbUser?.name || "",
-        phone: req.dbUser?.contact ? String(req.dbUser.contact) : "",
+        // Stored as a string (like buyerInfo.userId in orders) so it stays
+        // consistent whether dbUser came from the Redis cache (JSON string _id)
+        // or straight from Mongo (ObjectId) — otherwise a later $lookup against
+        // user._id would silently miss.
+        userId: req.dbUser?._id?.toString() || "",
+        contact,
       },
       status: "pending",
-      dateUploaded: new Date(),
-      createdAt: new Date(),
+      createdAt: now,
+      updatedAt: now,
     };
     const result = await service.createProduct(req.db, product);
     await del(PRODUCTS_DEFAULT_KEY);

@@ -28,7 +28,8 @@ export async function recordPurchase(db, { buyer, product, productId, transactio
   const now = new Date();
   const resolvedSellerEmail = product.sellerInfo?.email || product.sellerEmail || "";
   const resolvedSellerName = product.sellerInfo?.name || product.sellerName || "";
-  const resolvedSellerPhone = product.sellerInfo?.phone || "";
+  const resolvedSellerPhone =
+    product.sellerInfo?.phone || product.sellerInfo?.contact?.mobile1 || "";
 
   const order = {
     buyerInfo: { userId: buyer._id.toString(), name: buyer.name, email: buyer.email },
