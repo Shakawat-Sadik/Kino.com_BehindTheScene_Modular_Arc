@@ -7,6 +7,7 @@ import { anchored } from "../../lib/search.js";
 import { listProducts, getProductById } from "./products.service.js";
 
 const DEFAULT_TTL = 300; // 5 min
+const HIDDEN_STATUSES = new Set(["sold", "rejected"]);
 
 // The unfiltered first page — the hot path. Cached + invalidated on any product mutation.
 function isDefaultQuery(q) {
@@ -59,7 +60,9 @@ export async function getById(req, res) {
       return res.status(400).json({ success: false, message: "Invalid product ID" });
     }
     const result = await getProductById(req.db, req.params.id);
-    if (!result) {
+    // Public endpoint: sold-out (last unit booked) and taken-down (`rejected`)
+    // listings are hidden. Sellers/admins see them via their own dashboards.
+    if (!result || HIDDEN_STATUSES.has(result.status)) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
     res.status(200).json({ success: true, message: "Product info loaded", result });
