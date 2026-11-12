@@ -22,7 +22,8 @@ export function findProductById(db, productId) {
 }
 
 /**
- * Record the order + payment and mark the product sold. Returns the new orderId.
+ * Record the order + payment and take one unit of stock (the product becomes
+ * "sold" when its last unit is taken). Returns the new orderId.
  */
 export async function recordPurchase(db, { buyer, product, productId, transactionId, amount }) {
   const now = new Date();
@@ -58,10 +59,35 @@ export async function recordPurchase(db, { buyer, product, productId, transactio
     createdAt: now,
   });
 
-  await db.collection("products").updateOne(
-    { _id: new ObjectId(productId) },
-    { $set: { status: "sold", updatedAt: now } },
+  // Take one unit, atomically: the filter only matches while stock remains, and
+  // the pipeline marks the listing sold when this purchase takes the last unit.
+  // (Inside one $set stage "$quantity" is the pre-update value.) A missing
+  // quantity is treated as 1, matching createProduct's default.
+  const qty = { $ifNull: ["$quantity", 1] };
+  const stock = await db.collection("products").updateOne(
+    {
+      _id: new ObjectId(productId),
+      status: "available",
+      $or: [{ quantity: { $gte: 1 } }, { quantity: { $exists: false } }],
+    },
+    [
+      {
+        $set: {
+          quantity: { $subtract: [qty, 1] },
+          status: { $cond: [{ $lte: [qty, 1] }, "sold", "$status"] },
+          updatedAt: now,
+        },
+      },
+    ],
   );
+  if (stock.matchedCount === 0) {
+    // Oversold (two buyers raced for the last unit) or taken down mid-checkout.
+    // The buyer has already paid, so the order stands; it needs a refund — see
+    // docs/refund-flow-plan.md in the frontend repo.
+    console.warn(
+      `[payments] product ${productId} had no stock/was unavailable for order ${orderResult.insertedId} (tx ${transactionId}) — refund required`,
+    );
+  }
 
   return orderResult.insertedId;
 }
