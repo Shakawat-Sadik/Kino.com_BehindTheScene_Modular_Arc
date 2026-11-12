@@ -26,6 +26,43 @@ export function deleteUser(db, userId) {
   return db.collection("user").deleteOne({ _id: new ObjectId(userId) });
 }
 
+/**
+ * Delete a seller's listings that are not sold: available, pending (awaiting
+ * approval) and rejected (taken down). Sold ones stay so order history keeps
+ * its product reference; refunds work from order/payment records, not the
+ * product. Also drops the deleted ids from every user's wishlist (stored as
+ * strings). Returns the number of listings removed.
+ */
+export async function deleteUnsoldListings(db, sellerEmail) {
+  const products = db.collection("products");
+  const ids = await products
+    .find({ sellerEmail, status: { $ne: "sold" } }, { projection: { _id: 1 } })
+    .map((p) => p._id)
+    .toArray();
+  if (ids.length === 0) return 0;
+
+  const { deletedCount } = await products.deleteMany({ _id: { $in: ids } });
+  const idStrings = ids.map((id) => id.toString());
+  await db.collection("user").updateMany(
+    { wishlist: { $in: idStrings } },
+    { $pull: { wishlist: { $in: idStrings } } },
+  );
+  return deletedCount;
+}
+
+/**
+ * Delete better-auth's records for a user: `account` (password hash / Google
+ * link) and `session` (logged-in sessions). Both point to the user via
+ * `userId`, which better-auth's Mongo adapter stores as an ObjectId.
+ */
+export function deleteAuthRecords(db, userId) {
+  const filter = { userId: new ObjectId(userId) };
+  return Promise.all([
+    db.collection("account").deleteMany(filter),
+    db.collection("session").deleteMany(filter),
+  ]);
+}
+
 // ── products ───────────────────────────────────────────────
 export async function listProducts(db, { filter, skip, limit }) {
   const col = db.collection("products");

@@ -5,6 +5,8 @@ import { invalidateAuthUser } from "../../lib/authCache.js";
 import { del } from "../../lib/cache.js";
 import { PRODUCTS_DEFAULT_KEY } from "../../lib/cacheKeys.js";
 import { anchored } from "../../lib/search.js";
+import { sellerSnapshotUpdate } from "../../lib/sellerSnapshot.js";
+import { updateSellerProductSnapshots } from "../profile/profile.service.js";
 import * as service from "./admin.service.js";
 
 // ── users ──────────────────────────────────────────────────
@@ -67,6 +69,19 @@ export async function updateUser(req, res) {
     const target = await service.findUserEmailById(req.db, req.params.userId);
     const result = await service.updateUser(req.db, req.params.userId, update);
     await invalidateAuthUser(target?.email);
+
+    // Same eager, best-effort propagation as profile.controller.update: refresh
+    // the seller fields copied into this user's product listings.
+    const snapshot = sellerSnapshotUpdate(update);
+    if (target?.email && Object.keys(snapshot).length > 0) {
+      try {
+        await updateSellerProductSnapshots(req.db, target.email, snapshot);
+        await del(PRODUCTS_DEFAULT_KEY);
+      } catch (e) {
+        console.error(`[admin] snapshot propagation failed for ${target.email}:`, e.message);
+      }
+    }
+
     res.status(200).json({ success: true, message: "User updated", result });
   } catch (e) {
     sendError(res, 500, "Failed to update user", e);
@@ -79,9 +94,23 @@ export async function deleteUser(req, res) {
       return res.status(400).json({ success: false, message: "Invalid user ID" });
     }
     const target = await service.findUserEmailById(req.db, req.params.userId);
+
+    // Remove what would otherwise be orphaned: the user's unsold listings (sold
+    // ones stay for order history) and their better-auth login records.
+    let removedListings = 0;
+    if (target?.email) {
+      removedListings = await service.deleteUnsoldListings(req.db, target.email);
+    }
+    await service.deleteAuthRecords(req.db, req.params.userId);
+
     await service.deleteUser(req.db, req.params.userId);
     await invalidateAuthUser(target?.email);
-    res.status(200).json({ success: true, message: "User deleted", result: null });
+    if (removedListings > 0) await del(PRODUCTS_DEFAULT_KEY);
+    res.status(200).json({
+      success: true,
+      message: "User deleted",
+      result: { removedListings },
+    });
   } catch (e) {
     sendError(res, 500, "Failed to delete user", e);
   }
