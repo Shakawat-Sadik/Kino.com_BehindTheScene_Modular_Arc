@@ -13,11 +13,17 @@ export function createProduct(db, product) {
   return db.collection("products").insertOne(product);
 }
 
-export function updateOwnProduct(db, id, sellerEmail, update) {
-  return db.collection("products").updateOne(
+export function findOwnProductStatus(db, id, sellerEmail) {
+  return db.collection("products").findOne(
     { _id: new ObjectId(id), sellerEmail },
-    { $set: update },
+    { projection: { status: 1 } },
   );
+}
+
+export function updateOwnProduct(db, id, sellerEmail, set, unset = {}) {
+  const update = { $set: set };
+  if (Object.keys(unset).length > 0) update.$unset = unset;
+  return db.collection("products").updateOne({ _id: new ObjectId(id), sellerEmail }, update);
 }
 
 export function deleteOwnProduct(db, id, sellerEmail) {

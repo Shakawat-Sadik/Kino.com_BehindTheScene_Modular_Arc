@@ -7,6 +7,13 @@ import { anchored } from "../../lib/search.js";
 import { formatSellerLocation } from "../../lib/sellerSnapshot.js";
 import * as service from "./seller.service.js";
 
+/** Status after a seller sets the stock count; only available <-> sold ever flips. */
+function stockStatus(currentStatus, quantity) {
+  if (quantity === 0 && currentStatus === "available") return "sold";
+  if (quantity > 0 && currentStatus === "sold") return "available";
+  return currentStatus;
+}
+
 export async function listProducts(req, res) {
   try {
     const { search, category, status } = req.query;
@@ -80,8 +87,12 @@ export async function updateProduct(req, res) {
     if (!isValidObjectId(req.params.id)) {
       return res.status(400).json({ success: false, message: "Invalid product ID" });
     }
-    const { title, category, condition, price, description, images } = req.body;
+    const {
+      title, category, condition, price, description, images,
+      quantity, location2, mobile2,
+    } = req.body;
     const update = { updatedAt: new Date() };
+    const unset = {};
     if (title !== undefined) update.title = title;
     if (category !== undefined) update.category = category;
     if (condition !== undefined) update.condition = condition;
@@ -89,12 +100,38 @@ export async function updateProduct(req, res) {
     if (description !== undefined) update.description = description;
     if (images !== undefined) update.images = images;
 
-    const result = await service.updateOwnProduct(req.db, req.params.id, req.user.email, update);
+    // Per-listing overrides: a blank value removes the override so the
+    // profile-derived location1 / contact.mobile1 apply again.
+    if (location2 !== undefined) {
+      const value = String(location2).trim();
+      if (value) update.location2 = value;
+      else unset.location2 = "";
+    }
+    if (mobile2 !== undefined) {
+      const value = String(mobile2).trim();
+      if (value) update["sellerInfo.contact.mobile2"] = value;
+      else unset["sellerInfo.contact.mobile2"] = "";
+    }
+
+    // Stock drives availability: 0 sells the listing out, restocking a sold-out
+    // listing re-lists it. Moderation states (pending / rejected) are untouched.
+    let status;
+    if (quantity !== undefined) {
+      const current = await service.findOwnProductStatus(req.db, req.params.id, req.user.email);
+      if (!current) {
+        return res.status(404).json({ success: false, message: "Product not found or not yours" });
+      }
+      update.quantity = Number(quantity);
+      status = stockStatus(current.status, update.quantity);
+      if (status !== current.status) update.status = status;
+    }
+
+    const result = await service.updateOwnProduct(req.db, req.params.id, req.user.email, update, unset);
     if (result.matchedCount === 0) {
       return res.status(404).json({ success: false, message: "Product not found or not yours" });
     }
     await del(PRODUCTS_DEFAULT_KEY);
-    res.status(200).json({ success: true, message: "Product updated", result });
+    res.status(200).json({ success: true, message: "Product updated", result: { ...result, status } });
   } catch (e) {
     sendError(res, 500, "Failed to update product", e);
   }
