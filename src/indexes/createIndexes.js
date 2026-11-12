@@ -6,7 +6,8 @@
  * idempotent, so applying these repeatedly is safe.
  *
  * ESR note (products): compounds are ordered Equality → Sort → Range to match
- * real catalog queries (filter by status+category, sort by dateUploaded).
+ * real catalog queries (filter by status+category, sort by createdAt — the
+ * uniform product shape has no `dateUploaded`).
  *
  * Data-type note: `products.productId` is NOT indexed here — reviews/payments
  * reference products via a STRING `productId` (never coerced to ObjectId).
@@ -30,7 +31,7 @@ export const indexDefinitions = [
   { collection: "user", keys: { name: 1 }, options: { name: "name" } },
 
   // ── products (ESR compounds) ────────────────────────────
-  { collection: "products", keys: { status: 1, category: 1, dateUploaded: -1 }, options: { name: "status_category_date" } },
+  { collection: "products", keys: { status: 1, category: 1, createdAt: -1 }, options: { name: "status_category_created" } },
   { collection: "products", keys: { sellerEmail: 1, _id: -1 }, options: { name: "sellerEmail_id" } },
   { collection: "products", keys: { soldCount: -1 }, options: { name: "soldCount" } },
   // Supports prefix-anchored public /products title search (Phase 4.1).
@@ -62,6 +63,21 @@ export const indexDefinitions = [
 ];
 
 /**
+ * Indexes that were replaced and should be removed. Dropped before the
+ * definitions above are applied; a missing index is ignored, so re-runs stay
+ * idempotent.
+ *
+ * @type {{ collection: string, name: string }[]}
+ */
+export const dropIndexDefinitions = [
+  // Replaced by status_category_created (products no longer have dateUploaded).
+  { collection: "products", name: "status_category_date" },
+];
+
+const INDEX_NOT_FOUND = 27;
+const NAMESPACE_NOT_FOUND = 26;
+
+/**
  * Find duplicate groups for a unique index's equality fields.
  * Returns groups with >1 document; `ids` are sorted so the FIRST is the keeper.
  */
@@ -88,6 +104,15 @@ export async function createIndexes(db, { fix = false, log = console.log } = {})
   const created = [];
   const skipped = [];
   let removedDocs = 0;
+
+  for (const { collection, name } of dropIndexDefinitions) {
+    try {
+      await db.collection(collection).dropIndex(name);
+      log(`  − dropped ${collection}.${name}`);
+    } catch (e) {
+      if (e?.code !== INDEX_NOT_FOUND && e?.code !== NAMESPACE_NOT_FOUND) throw e;
+    }
+  }
 
   for (const def of indexDefinitions) {
     const label = `${def.collection}.${def.options?.name ?? JSON.stringify(def.keys)}`;
