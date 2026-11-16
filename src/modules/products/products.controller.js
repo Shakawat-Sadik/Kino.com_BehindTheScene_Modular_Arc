@@ -29,12 +29,13 @@ export async function list(req, res) {
     if (status) filter.status = status;
     if (condition) filter.condition = condition;
 
-    const sortObj = {};
-    if (sort) {
-      const direction = order === "desc" ? -1 : 1;
-      if (sort === "price") sortObj.price = direction;
-      if (sort === "createdAt") sortObj.createdAt = direction;
-    }
+    // Default: createdAt, latest → oldest. `sort=price` defaults to cheapest first.
+    // An explicit `order=asc|desc` overrides either. `_id` breaks ties so
+    // pagination is stable.
+    const field = sort === "price" ? "price" : "createdAt";
+    const defaultDir = field === "price" ? 1 : -1;
+    const direction = order === "asc" ? 1 : order === "desc" ? -1 : defaultDir;
+    const sortObj = { [field]: direction, _id: direction };
 
     const fetch = () => listProducts(req.db, { filter, sortObj, skip, limit });
     const { result, total } = isDefaultQuery(req.query)
